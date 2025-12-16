@@ -1,0 +1,33 @@
+[
+  {
+    "id": "otp-login-workflow",
+    "config": {
+      "src/auth/verify-otp.step.ts": {
+        "x": 0,
+        "y": 448
+      },
+      "src/auth/request-otp.step.ts": {
+        "x": 0,
+        "y": 224
+      },
+      "src/auth/otp-login-succeeded.step.ts": {
+        "x": 350,
+        "y": 482
+      }
+    }
+  },
+  {
+    "id": "hello-world-flow",
+    "config": {
+      "src/hello/process-greeting.step.ts": {
+        "x": 545,
+        "y": -74
+      },
+      "src/hello/hello-api.step.ts": {
+        "x": 74,
+        "y": -118,
+        "sourceHandlePosition": "right"
+      }
+    }
+  }
+]
