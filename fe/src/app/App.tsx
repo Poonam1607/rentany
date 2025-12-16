@@ -8,6 +8,8 @@ import { ItemDetailModal } from './components/ItemDetailModal';
 import { mockUser, mockItems, mockBookings } from './data/mockData';
 import { RentalItem, Booking } from './types';
 import { Toaster } from './components/ui/sonner';
+import { LoginView } from './components/LoginView';
+import { OtpView } from './components/OtpView';
 
 type View = 'discover' | 'my-listings' | 'my-bookings' | 'add-item';
 
@@ -16,6 +18,11 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
   const [items] = useState(mockItems);
   const [bookings, setBookings] = useState(mockBookings);
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authStep, setAuthStep] = useState<'login' | 'otp' | 'profile'>('login');
+  const [phone, setPhone] = useState('');
+
 
   const handleItemClick = (item: RentalItem) => {
     setSelectedItem(item);
@@ -57,6 +64,32 @@ export default function App() {
   const handleItemAdded = () => {
     setCurrentView('my-listings');
   };
+
+if (!isAuthenticated) {
+  if (authStep === 'login') {
+    return (
+      <LoginView
+        onSendOtp={(p) => {
+          setPhone(p);
+          setAuthStep('otp');
+        }}
+      />
+    );
+  }
+
+  if (authStep === 'otp') {
+    return (
+      <OtpView
+        phone={phone}
+        onSuccess={(session) => {
+          localStorage.setItem('session', JSON.stringify(session));
+          setIsAuthenticated(true);
+          setCurrentView('discover');
+        }}
+      />
+    );
+  }
+}
 
   return (
     <div className="min-h-screen bg-gray-50">
