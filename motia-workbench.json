@@ -29,5 +29,31 @@
         "sourceHandlePosition": "right"
       }
     }
+  },
+  {
+    "id": "wishlist-management",
+    "config": {
+      "src/wishlist/remove-from-wishlist.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/wishlist/add-to-wishlist.step.ts": {
+        "x": 18,
+        "y": 204
+      }
+    }
+  },
+  {
+    "id": "payment-workflow",
+    "config": {
+      "src/payment/handle-payment-webhook.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/payment/create-payment-intent.step.ts": {
+        "x": 25,
+        "y": 224
+      }
+    }
   }
 ]

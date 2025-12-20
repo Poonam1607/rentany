@@ -1,0 +1,88 @@
+import type { CronConfig, Handlers } from 'motia';
+import { z } from 'zod';
+import { httpGet, httpPost, getServiceUrl } from '../shared/http-client';
+import { isHoldExpired } from '../shared/pricing-utils';
+
+// TEMPORARILY DISABLED: This cron job depends on external microservices
+// that have been removed after SQLite refactoring. Re-enable when implementing 
+// direct database queries instead of HTTP calls.
+/*
+export const config: CronConfig = {
+    name: 'SlotHoldExpiredHandler',
+    type: 'cron',
+    description: 'Detects and releases expired slot holds (runs every minute)',
+    cron: '* * * * *', // Every minute
+    emits: ['inventory.hold_expired'],
+    flows: ['recovery-resilience'],
+};
+*/
+
+
+export const handler: Handlers['SlotHoldExpiredHandler'] = async ({ logger, emit }) => {
+    logger.info('Checking for expired slot holds');
+
+    try {
+        const inventoryServiceUrl = getServiceUrl('INVENTORY');
+
+        // Get all held slots
+        const response = await httpGet<{
+            slots: Array<{
+                id: string;
+                itemId: string;
+                holdExpiresAt: string;
+                startAt: string;
+                endAt: string;
+            }>;
+        }>(
+            `${inventoryServiceUrl}/slots?status=held`,
+            {},
+            logger
+        );
+
+        const expiredSlots = response.data.slots.filter((slot) =>
+            isHoldExpired(slot.holdExpiresAt)
+        );
+
+        logger.info(`Found ${expiredSlots.length} expired holds out of ${response.data.slots.length} held slots`);
+
+        // Release each expired hold
+        for (const slot of expiredSlots) {
+            try {
+                await httpPost(
+                    `${inventoryServiceUrl}/slots/release`,
+                    {
+                        slotId: slot.id,
+                        reason: 'expired_hold',
+                    },
+                    {},
+                    logger
+                );
+
+                await emit({
+                    topic: 'inventory.hold_expired',
+                    data: {
+                        slotId: slot.id,
+                        itemId: slot.itemId,
+                        holdExpiresAt: slot.holdExpiresAt,
+                        releasedAt: new Date().toISOString(),
+                    },
+                });
+
+                logger.info('Released expired hold', { slotId: slot.id });
+            } catch (error) {
+                logger.error('Failed to release expired hold', {
+                    error,
+                    slotId: slot.id,
+                });
+                // Continue with other slots
+            }
+        }
+
+        logger.info('Expired holds check completed', {
+            total: response.data.slots.length,
+            expired: expiredSlots.length,
+        });
+    } catch (error) {
+        logger.error('Failed to check expired holds', { error });
+    }
+};

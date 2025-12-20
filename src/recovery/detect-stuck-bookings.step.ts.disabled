@@ -1,0 +1,73 @@
+import type { CronConfig, Handlers } from 'motia';
+import { z } from 'zod';
+import { httpGet, getServiceUrl } from '../shared/http-client';
+
+// TEMPORARILY DISABLED: This cron job depends on external microservices
+// that have been removed after SQLite refactoring. Re-enable when implementing
+// direct database queries instead of HTTP calls.
+/*
+export const config: CronConfig = {
+    name: 'DetectStuckBookings',
+    type: 'cron',
+    description: 'Detects bookings stuck in pending_payment status (runs every 5 minutes)',
+    cron: '*/5 * * * * ', // Every 5 minutes
+emits: ['booking.stuck'],
+    flows: ['recovery-resilience'],
+};
+*/
+
+
+export const handler: Handlers['DetectStuckBookings'] = async (input, { logger, emit }) => {
+    logger.info('Checking for stuck bookings');
+
+    try {
+        const bookingServiceUrl = getServiceUrl('BOOKING');
+
+        // Query bookings in pending_payment status older than 20 minutes
+        const threshold = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+
+        const response = await httpGet<{
+            bookings: Array<{
+                id: string;
+                renterId: string;
+                itemId: string;
+                slotId: string;
+                createdAt: string;
+            }>;
+        }>(
+            `${bookingServiceUrl}/bookings?status=pending_payment&createdBefore=${threshold}`,
+            {},
+            logger
+        );
+
+        const stuckBookings = response.data.bookings;
+
+        logger.info(`Found ${stuckBookings.length} stuck bookings`);
+
+        // Emit stuck booking event for each
+        for (const booking of stuckBookings) {
+            await emit({
+                topic: 'booking.stuck',
+                data: {
+                    bookingId: booking.id,
+                    renterId: booking.renterId,
+                    itemId: booking.itemId,
+                    slotId: booking.slotId,
+                    createdAt: booking.createdAt,
+                    detectedAt: new Date().toISOString(),
+                },
+            });
+
+            logger.warn('Stuck booking detected', {
+                bookingId: booking.id,
+                createdAt: booking.createdAt,
+            });
+        }
+
+        logger.info('Stuck bookings check completed', {
+            total: stuckBookings.length,
+        });
+    } catch (error) {
+        logger.error('Failed to check for stuck bookings', { error });
+    }
+};
