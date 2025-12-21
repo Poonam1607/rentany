@@ -17,7 +17,7 @@ export const config: ApiRouteConfig = {
     description: 'Uploads and processes media for a rental listing',
     emits: ['item.media_uploaded'],
     flows: ['item-management'],
-    bodySchema: uploadMediaBodySchema,
+    // bodySchema: uploadMediaBodySchema, // DISABLE AUTO-VALIDATION to debug manually in handler
     responseSchema: {
         200: z.object({
             imageUrl: z.string(),
@@ -26,6 +26,8 @@ export const config: ApiRouteConfig = {
         }),
         400: z.object({
             error: z.string(),
+            issues: z.any().optional(),
+            debug: z.any().optional(),
         }),
         401: z.object({
             error: z.string(),
@@ -51,6 +53,7 @@ export const handler: Handlers['UploadItemMedia'] = async (req, { logger, emit }
             status: 400,
             body: {
                 error: 'Invalid request payload',
+                issues: parsed.error.issues, // exposing schema validation errors
             },
         };
     }
@@ -65,12 +68,30 @@ export const handler: Handlers['UploadItemMedia'] = async (req, { logger, emit }
         };
     }
 
-    const itemId = extractLastPathSegment((req as any).path || '');
+    // DEBUG: Try multiple ways to get itemId because pathParams might be flaky?
+    let itemId = ((req as any).pathParams || {}).itemId;
+
+    // Fallback: Regex or manual split
+    if (!itemId) {
+        const path = (req as any).path || '';
+        // matches /items/xyz/media
+        const match = path.match(/\/items\/([^\/]+)\/media/);
+        if (match && match[1]) {
+            itemId = match[1];
+        }
+    }
+
     if (!itemId) {
         return {
             status: 400,
             body: {
                 error: 'Item ID is required',
+                debug: {
+                    path: (req as any).path,
+                    pathParams: (req as any).pathParams,
+                    body: req.body,
+                    reason: 'Could not extract itemId from path or params'
+                }
             },
         };
     }
@@ -107,9 +128,9 @@ export const handler: Handlers['UploadItemMedia'] = async (req, { logger, emit }
         // Simpler for now: just insert. 
         if (parsed.data.isPrimary) {
             await pool.query(
-            'UPDATE item_images SET "isPrimary" = 0 WHERE "itemId" = $1',
-            [itemId]
-        );
+                'UPDATE item_images SET "isPrimary" = FALSE WHERE "itemId" = $1',
+                [itemId]
+            );
         }
 
         const mediaId = generateId('img');
@@ -118,7 +139,7 @@ export const handler: Handlers['UploadItemMedia'] = async (req, { logger, emit }
         await pool.query(
             `INSERT INTO item_images (id, "itemId", "imageUrl", "isPrimary", "createdAt")
             VALUES ($1, $2, $3, $4, $5)`,
-            [mediaId, itemId, parsed.data.imageUrl, parsed.data.isPrimary ? 1 : 0, uploadedAt]
+            [mediaId, itemId, parsed.data.imageUrl, parsed.data.isPrimary, uploadedAt]
         );
 
         // @ts-ignore

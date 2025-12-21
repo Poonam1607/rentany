@@ -3,61 +3,61 @@ import { Logger } from 'motia';
 
 // Types matching our SQLite schema
 export interface User {
-    id: string;
-    mobile: string | null;
-    email: string | null;
-    name: string | null;
-    emailVerified: boolean;
-    mobileVerified: boolean;
-    role: 'USER' | 'ADMIN';
-    status: 'ACTIVE' | 'BLOCKED';
-    aadhaarVerified: boolean;
-    createdAt: string;
-    updatedAt: string | null;
+  id: string;
+  mobile: string | null;
+  email: string | null;
+  name: string | null;
+  emailVerified: boolean;
+  mobileVerified: boolean;
+  role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'BLOCKED';
+  aadhaarVerified: boolean;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
 export interface Address {
-    id: string;
-    userId: string;
-    line1: string;
-    line2: string | null;
-    city: string;
-    state: string;
-    pincode: string;
-    country: string;
-    lat: number;
-    lng: number;
-    isDefault: boolean;
-    createdAt: string;
+  id: string;
+  userId: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  lat: number;
+  lng: number;
+  isDefault: boolean;
+  createdAt: string;
 }
 
 export interface OTP {
-    id: string;
-    mobile: string | null;
-    email: string | null;
-    code: string;
-    expiresAt: string;
-    verified: boolean;
-    createdAt: string;
+  id: string;
+  mobile: string | null;
+  email: string | null;
+  code: string;
+  expiresAt: string;
+  verified: boolean;
+  createdAt: string;
 }
 
 export interface Item {
-    id: string;
-    ownerId: string;
-    title: string;
-    description: string;
-    category: string;
-    hourlyRate: number;
-    currency: string;
-    deposit: number | null;
-    minHours: number;
-    maxHours: number | null;
-    status: string;
-    addressId: string;
-    rating: number | null;
-    totalReviews: number;
-    createdAt: string;
-    updatedAt: string | null;
+  id: string;
+  ownerId: string;
+  title: string;
+  description: string;
+  category: string;
+  hourlyRate: number;
+  currency: string;
+  deposit: number | null;
+  minHours: number;
+  maxHours: number | null;
+  status: string;
+  addressId: string;
+  rating: number | null;
+  totalReviews: number;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
 // Global pool instance
@@ -67,58 +67,58 @@ let pool: Pool | null = null;
  * Get PostgreSQL connection pool (singleton)
  */
 export function getPool(): Pool {
-    if (!pool) {
-        const connectionString = process.env.DB_CONNECTION_STRING || process.env.DATABASE_URL;
+  if (!pool) {
+    const connectionString = process.env.DB_CONNECTION_STRING || process.env.DATABASE_URL;
 
-        if (!connectionString) {
-            throw new Error('DB_CONNECTION_STRING or DATABASE_URL environment variable is not set');
-        }
-
-        console.log('[PostgreSQL] Initializing connection pool...');
-
-        pool = new Pool({
-            connectionString,
-            // Lambda-optimized settings
-            max: 10, // Max connections in pool
-            idleTimeoutMillis: 30000, // Close idle connections after 30s
-            connectionTimeoutMillis: 10000, // Fail fast if can't connect
-            ssl: {
-                rejectUnauthorized: false // Neon uses SSL
-            }
-        });
-
-        pool.on('error', (err) => {
-            console.error('[PostgreSQL] Unexpected error on idle client', err);
-        });
-
-        // Initialize schema on first connection
-        initializeSchema(pool).catch(err => {
-            console.error('[PostgreSQL] Failed to initialize schema:', err);
-        });
-
-        console.log('[PostgreSQL] ✅ Pool initialized successfully');
+    if (!connectionString) {
+      throw new Error('DB_CONNECTION_STRING or DATABASE_URL environment variable is not set');
     }
 
-    return pool;
+    console.log('[PostgreSQL] Initializing connection pool...');
+
+    pool = new Pool({
+      connectionString,
+      // Lambda-optimized settings
+      max: 10, // Max connections in pool
+      idleTimeoutMillis: 30000, // Close idle connections after 30s
+      connectionTimeoutMillis: 10000, // Fail fast if can't connect
+      ssl: {
+        rejectUnauthorized: false // Neon uses SSL
+      }
+    });
+
+    pool.on('error', (err) => {
+      console.error('[PostgreSQL] Unexpected error on idle client', err);
+    });
+
+    // Initialize schema on first connection
+    initializeSchema(pool).catch(err => {
+      console.error('[PostgreSQL] Failed to initialize schema:', err);
+    });
+
+    console.log('[PostgreSQL] ✅ Pool initialized successfully');
+  }
+
+  return pool;
 }
 
 /**
  * Helper to generate IDs with prefix
  */
 export function generateId(prefix: string): string {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 /**
  * Initialize database schema
  */
 async function initializeSchema(pool: Pool): Promise<void> {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        console.log('[PostgreSQL] Creating tables...');
+  try {
+    console.log('[PostgreSQL] Creating tables...');
 
-        await client.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         mobile TEXT UNIQUE,
@@ -296,22 +296,22 @@ async function initializeSchema(pool: Pool): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_wishlist_items_userId ON wishlist_items("userId");
     `);
 
-        console.log('[PostgreSQL] ✅ Schema initialized successfully');
-    } catch (error) {
-        console.error('[PostgreSQL] ❌ Schema initialization failed:', error);
-        throw error;
-    } finally {
-        client.release();
-    }
+    console.log('[PostgreSQL] ✅ Schema initialized successfully');
+  } catch (error) {
+    console.error('[PostgreSQL] ❌ Schema initialization failed:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
  * Close the pool (for graceful shutdown)
  */
 export async function closePool(): Promise<void> {
-    if (pool) {
-        await pool.end();
-        pool = null;
-        console.log('[PostgreSQL] Connection pool closed');
-    }
+  if (pool) {
+    await pool.end();
+    pool = null;
+    console.log('[PostgreSQL] Connection pool closed');
+  }
 }

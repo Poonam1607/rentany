@@ -110,16 +110,22 @@ export const handler: Handlers['UpdateListing'] = async (req, { logger, emit }) 
 
         const fields = Object.keys(parsed.data);
         if (fields.length > 0) {
-            const setClause = fields.map(f => `${f} = ?`).join(', ');
+            // Postgres uses $1, $2, etc. NOT ?.
+            // Map fields to $1, $2, ... $N
+            const setClause = fields.map((f, i) => `"${f}" = $${i + 1}`).join(', ');
             const values = fields.map(f => (parsed.data as any)[f]);
 
-            // Add updatedAt
+            // Add updatedAt. It will be the next parameter index ($N+1)
             const updatedAt = new Date().toISOString();
+            const updatedAtPlaceholder = `$${fields.length + 1}`;
+
+            // ItemId will be the parameter after updatedAt ($N+2)
+            const itemIdPlaceholder = `$${fields.length + 2}`;
 
             await pool.query(
                 `UPDATE items 
-                SET ${setClause}, "updatedAt" = $1
-                WHERE id = $2`,
+                SET ${setClause}, "updatedAt" = ${updatedAtPlaceholder}
+                WHERE id = ${itemIdPlaceholder}`,
                 [...values, updatedAt, itemId]
             );
         }
