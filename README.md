@@ -1,4 +1,7 @@
-# rentany-be
+# Rent Anything, Anytime
+The premium peer-to-peer marketplace for hourly rentals. Discover cameras, tools, gear, and more nearby.
+
+## rentany-be
 
 A Motia project created with the starter template.
 
