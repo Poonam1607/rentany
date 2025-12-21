@@ -1,38 +1,45 @@
 import type { ApiRouteConfig, Handlers } from 'motia';
 import { z } from 'zod';
+import { getPool, generateId } from '../shared/postgres';
+import { sendOtpEmail } from '../shared/email-service';
+import crypto from 'crypto';
 
 const requestOtpBodySchema = z.object({
-  email: z.string().email().optional(),
-  mobile: z
-    .string()
-    .min(6)
-    .max(20)
-    .optional(),
-}).refine(
-  (value) => Boolean(value.email || value.mobile),
-  { message: 'Either email or mobile is required' },
-);
+  email: z.string().email(),
+});
+
 
 export const config: ApiRouteConfig = {
   name: 'RequestOtp',
   type: 'api',
   path: '/auth/otp/request',
   method: 'POST',
-  description: 'Starts the OTP login flow by requesting an OTP for email or mobile',
+  description: 'Starts the OTP login flow by requesting an OTP for email',
   emits: ['auth.otp_requested'],
   flows: ['otp-login-workflow'],
   bodySchema: requestOtpBodySchema,
   responseSchema: {
     200: z.object({
       status: z.literal('pending'),
-      channel: z.enum(['email', 'mobile']),
       requestedAt: z.string(),
     }),
     400: z.object({
       error: z.string(),
     }),
+    500: z.object({
+      error: z.string(),
+    }),
   },
 };
+
+function generateOtpCode(): string {
+  const length = 6;
+  const min = Math.pow(10, length - 1);
+  const max = Math.pow(10, length) - 1;
+
+  return crypto.randomInt(min, max).toString();
+}
+
 
 export const handler: Handlers['RequestOtp'] = async (req, { logger, emit }) => {
   const parsed = requestOtpBodySchema.safeParse(req.body);
@@ -48,60 +55,62 @@ export const handler: Handlers['RequestOtp'] = async (req, { logger, emit }) => 
     };
   }
 
-  const { email, mobile } = parsed.data;
-
-  const authServiceUrl = process.env.AUTH_SERVICE_URL;
-  if (!authServiceUrl) {
-    logger.error('AUTH_SERVICE_URL is not configured');
-    return {
-      status: 500,
-      body: {
-        error: 'Auth service not configured',
-      },
-    };
-  }
-
-  const channel = email ? 'email' as const : 'mobile' as const;
+  const { email } = parsed.data;
   const requestedAt = new Date().toISOString();
 
   try {
-    // Delegate OTP generation + delivery to the Auth service
-    await fetch(`${authServiceUrl}/otp/request`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ email, mobile }),
+    const pool = getPool();
+    const code = generateOtpCode();
+    const expiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES || '10', 10);
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000).toISOString();
+
+    // Store OTP in database
+    const otpId = generateId('otp');
+    await pool.query(
+      `INSERT INTO otps (id, mobile, email, code, "expiresAt", verified, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [otpId, null, email, code, expiresAt, false, requestedAt]
+    );
+
+    logger.info('OTP generated and stored', {
+      otpId,
+      email,
+      expiresAt,
     });
-  } catch (error) {
-    logger.error('Failed to call Auth service for OTP request', { error });
+
+    // Send OTP via email
+    try {
+      await sendOtpEmail(email, code);
+      logger.info('OTP email sent successfully', { email, otpId });
+    } catch (emailError) {
+      logger.error('Failed to send OTP email', { error: emailError, email });
+      // Continue anyway - OTP is stored in DB
+    }
+
+    // Emit event for downstream workflows / analytics
+    // Note: Using 'as any' because Motia types emit() based on subscribers.
+    // This event has no subscriber yet (for future security monitoring).
+    await (emit as any)({
+      topic: 'auth.otp_requested',
+      data: {
+        email,
+        requestedAt,
+      },
+    });
     return {
-      status: 502,
+      status: 200,
       body: {
-        error: 'Failed to reach auth service',
+        status: 'pending',
+        requestedAt,
+      },
+    };
+  } catch (error) {
+    logger.error('Failed to generate OTP', { error });
+    return {
+      status: 500,
+      body: {
+        error: 'Failed to generate OTP',
       },
     };
   }
-
-  // Emit event for downstream workflows / analytics
-  await emit({
-    topic: 'auth.otp_requested',
-    data: {
-      email,
-      mobile,
-      channel,
-      requestedAt,
-    },
-  });
-
-  return {
-    status: 200,
-    body: {
-      status: 'pending',
-      channel,
-      requestedAt,
-    },
-  };
 };
-
-

@@ -25,7 +25,9 @@ export const handler: Handlers['HelloAPI'] = async (_, { emit, logger }) => {
   logger.info('Hello API endpoint called', { appName, timestamp });
   
   // Emit event for background processing
-  await emit({
+  // @ts-ignore
+        // @ts-ignore
+        await emit({
     topic: 'process-greeting',
     data: {
       timestamp,
