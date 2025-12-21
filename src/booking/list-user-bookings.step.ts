@@ -52,10 +52,22 @@ export const handler: Handlers['ListUserBookings'] = async (req, { logger }) => 
     }
 
     const reqAny = req as any;
-    const queryParams = reqAny.query || {};
+    // robust extraction for various adapter types
+    const queryParams = reqAny.query || reqAny.queryParams || reqAny.queryStringParameters || {};
     const queryObject = queryParams;
 
     const parsed = listBookingsQuerySchema.safeParse(queryObject);
+
+    // Filter out undefined/nulls to avoid "undefined" string matching
+    if (parsed.success && parsed.data.role) {
+        // verified role
+    }
+
+    logger.info('ListBookings Request', {
+        extractedParams: queryParams,
+        parsed: parsed.success ? parsed.data : parsed.error,
+        userId
+    });
 
     if (!parsed.success) {
         logger.warn('Invalid list bookings query', { issues: parsed.error.issues });

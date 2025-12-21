@@ -158,7 +158,7 @@ export const handler: Handlers['CreateBooking'] = async (req, { logger, emit }) 
             totalAmount: pricing.total,
             deposit: item.deposit || 0,
             currency: item.currency,
-            status: 'pending_payment',
+            status: 'pending',
             createdAt: new Date().toISOString()
         };
 

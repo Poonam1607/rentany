@@ -55,5 +55,22 @@
         "y": 224
       }
     }
+  },
+  {
+    "id": "notification-workflow",
+    "config": {
+      "src/notification/send-payment-failed-alert.step.ts": {
+        "x": 11,
+        "y": 0
+      },
+      "src/notification/send-cancellation-notice.step.ts": {
+        "x": 0,
+        "y": 136
+      },
+      "src/notification/send-booking-confirmation.step.ts": {
+        "x": 0,
+        "y": 292
+      }
+    }
   }
 ]

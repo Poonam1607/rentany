@@ -36,8 +36,10 @@ export const config: ApiRouteConfig = {
 };
 
 export const handler: Handlers['ApproveBooking'] = async (req, { logger, emit }) => {
-    const { bookingId } = ((req as any).pathParams || {}) as { bookingId: string };
+    const { bookingId } = ((req as any).pathParams || (req as any).params || {}) as { bookingId: string };
     const userId = getUserIdFromHeader(req.headers);
+
+    logger.info('ApproveBooking attempt', { userId, bookingId, pathParams: (req as any).pathParams, params: (req as any).params });
 
     if (!userId) {
         return {
@@ -57,13 +59,17 @@ export const handler: Handlers['ApproveBooking'] = async (req, { logger, emit })
         const booking = bookingResult.rows[0];
 
         if (!booking) {
+            logger.warn('Booking not found', { bookingId });
             return {
                 status: 404,
                 body: { error: 'Booking not found' },
             };
         }
 
+        logger.info('Checking ownership', { bookingOwner: booking.ownerId, userId });
+
         if (booking.ownerId !== userId) {
+            logger.warn('Ownership mismatch', { expected: booking.ownerId, actual: userId });
             return {
                 status: 403,
                 body: { error: 'Only the item owner can approve this booking' },
@@ -78,40 +84,29 @@ export const handler: Handlers['ApproveBooking'] = async (req, { logger, emit })
         }
 
         // 2. Approve Booking (Update status)
-        // In a real flow, this might move to 'pending_payment'. 
-        // For simplicity/demo, we confirm it directly or assume payment is handled separately.
-        // Let's mark it 'confirmed' effectively bypassing payment for this demo step.
+        // Move to 'pending_payment' so Renter can pay.
         await pool.query(
             'UPDATE bookings SET status = $1 WHERE id = $2',
-            ['confirmed', bookingId]
+            ['pending_payment', bookingId]
         );
 
         // 3. Update Slot Status
+        // Slot is already 'held' or 'booked'? technically 'held' until paid or 'booked'?. 
+        // Let's keep it 'booked' or 'held'. If we say 'booked', nobody else can take it.
         await pool.query(
             "UPDATE inventory_slots SET status = 'booked' WHERE id = $1",
             [booking.slotId]
         );
 
-        // @ts-ignore
-        await emit({
-            topic: 'booking.confirmed',
-            data: {
-                bookingId,
-                renterId: booking.renterId,
-                ownerId: booking.ownerId,
-                itemId: booking.itemId,
-                slotId: booking.slotId,
-                paymentId: booking.paymentId || 'bypass', // Manual approval
-                amount: booking.totalAmount,
-                confirmedAt: new Date().toISOString()
-            }
-        });
+        /* Events emitted later after payment? Or partially now? 
+           For now we just return success.
+        */
 
         return {
             status: 200,
             body: {
                 success: true,
-                status: 'confirmed'
+                status: 'pending_payment'
             },
         };
 
