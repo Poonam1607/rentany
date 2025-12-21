@@ -101,7 +101,26 @@ export const handler: Handlers['ListUserBookings'] = async (req, { logger }) => 
         params.push(limit, offset);
 
         const bookingsResult = await pool.query(query, params);
-        const bookings = bookingsResult.rows;
+        let bookings = bookingsResult.rows;
+
+        // Hydrate bookings with Item and User details
+        if (bookings.length > 0) {
+            const itemIds = [...new Set(bookings.map((b: any) => b.itemId))];
+            const userIds = [...new Set([...bookings.map((b: any) => b.renterId), ...bookings.map((b: any) => b.ownerId)])];
+
+            const itemsRes = await pool.query('SELECT id, title FROM items WHERE id = ANY($1)', [itemIds]);
+            const usersRes = await pool.query('SELECT id, name FROM users WHERE id = ANY($1)', [userIds]);
+
+            const itemsMap = new Map(itemsRes.rows.map((i: any) => [i.id, i]));
+            const usersMap = new Map(usersRes.rows.map((u: any) => [u.id, u]));
+
+            bookings = bookings.map((b: any) => ({
+                ...b,
+                item: itemsMap.get(b.itemId),
+                renter: usersMap.get(b.renterId),
+                owner: usersMap.get(b.ownerId),
+            }));
+        }
 
         return {
             status: 200,

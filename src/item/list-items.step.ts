@@ -96,14 +96,14 @@ export const handler: Handlers['ListItems'] = async (req, { logger }) => {
 
         const items = await Promise.all(rows.map(async (row) => {
             const imagesResult = await pool.query(
-                'SELECT "imageUrl" FROM item_images WHERE "itemId" = $1 ORDER BY "isPrimary" DESC, "createdAt" DESC',
+                'SELECT id, "imageUrl", "isPrimary" FROM item_images WHERE "itemId" = $1 ORDER BY "isPrimary" DESC, "createdAt" DESC',
                 [row.id]
             );
             const images = imagesResult.rows;
 
             return {
                 ...row,
-                images: images.map((i: any) => i.imageUrl),
+                images: images,
                 hourlyRate: row.hourlyRate,
                 totalReviews: row.totalReviews || 0,
                 status: row.status as any,

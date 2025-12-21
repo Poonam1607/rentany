@@ -41,7 +41,7 @@ export const handler: Handlers['RemoveFromWishlist'] = async (req, { logger, emi
         };
     }
 
-    const itemId = extractLastPathSegment((req as any).path || '');
+    const { itemId } = ((req as any).pathParams || {}) as { itemId: string };
     if (!itemId) {
         return {
             status: 400,

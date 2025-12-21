@@ -78,14 +78,14 @@ export const handler: Handlers['GetListing'] = async (req, { logger }) => {
         const owner = ownerResult.rows[0];
 
         const imagesResult = await pool.query(
-            'SELECT "imageUrl" FROM item_images WHERE "itemId" = $1 ORDER BY "isPrimary" DESC, "createdAt" DESC',
+            'SELECT id, "imageUrl", "isPrimary" FROM item_images WHERE "itemId" = $1 ORDER BY "isPrimary" DESC, "createdAt" DESC',
             [itemId]
         );
         const images = imagesResult.rows;
 
         const fullItem = {
             ...item,
-            images: images.map(i => i.imageUrl),
+            images: images, // Return full objects { imageUrl, ... } from SQL result
             hourlyRate: item.hourlyRate,
             totalReviews: item.totalReviews || 0,
             status: item.status as any,
