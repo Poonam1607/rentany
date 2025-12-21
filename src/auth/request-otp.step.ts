@@ -2,6 +2,7 @@ import type { ApiRouteConfig, Handlers } from 'motia';
 import { z } from 'zod';
 import { getPool, generateId } from '../shared/postgres';
 import { sendOtpEmail } from '../shared/email-service';
+import crypto from 'crypto';
 
 const requestOtpBodySchema = z.object({
   email: z.string().email(),
@@ -32,8 +33,13 @@ export const config: ApiRouteConfig = {
 };
 
 function generateOtpCode(): string {
-  return '123456';
+  const length = 6;
+  const min = Math.pow(10, length - 1);
+  const max = Math.pow(10, length) - 1;
+
+  return crypto.randomInt(min, max).toString();
 }
+
 
 export const handler: Handlers['RequestOtp'] = async (req, { logger, emit }) => {
   const parsed = requestOtpBodySchema.safeParse(req.body);
